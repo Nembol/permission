@@ -9,14 +9,14 @@
  * @param {array} roles User roles that have authorization for the view.
  *            If undefined, any role can check the view.
  */
-var permission = function (roles) {
-  return function (req, res, next) {
+var permission = function(roles) {
+  return function(req, res, next) {
     var options = req.app.get('permission') || {};
 
     /**
      * Setting default values if options are not set.
      * @define {string} role User's property name describing his role.
-     */    
+     */
     var role = options.role || 'role';
 
     /**
@@ -29,16 +29,22 @@ var permission = function (roles) {
      *
      * @define {Object} notAuthenticated Defines properties when user is non authenticated.
      */
-    var notAuthenticated = options.notAuthenticated || { status: 401, redirect: null };
+    var notAuthenticated = options.notAuthenticated || {
+      status: 401,
+      redirect: null
+    };
     /** @define {Object} notAuthorized Defines properties when user is not authorized. */
-    var notAuthorized = options.notAuthorized || { status: 403, redirect: null };
+    var notAuthorized = options.notAuthorized || {
+      status: 403,
+      redirect: null
+    };
 
     /**
      * Function to be called after permission is done with checking ACL.
      * @enum {string} authorizedStatus : notAuthenticated, notAuthorized, authorized.
      */
-    var after = options.after || function(req, res, next, authorizedStatus){
-      if (authorizedStatus === permission.AUTHORIZED){
+    var after = options.after || function(req, res, next, authorizedStatus) {
+      if (authorizedStatus === permission.AUTHORIZED) {
         next();
       } else {
         var state = authorizedStatus === permission.NOT_AUTHORIZED ? notAuthorized : notAuthenticated;
@@ -46,31 +52,48 @@ var permission = function (roles) {
         if (state.redirect) {
           state.message && req.flash(state.flashType, state.message);
           res.redirect(state.redirect);
-        }
-        else {
+        } else {
           res.status(state.status).send(null);
         }
       }
     }
 
-    if (req.isAuthenticated() && !req.user[role]) { throw new Error("User doesn't have property named: " + 
-                                                       role + ". See Advantage Start in docs") }
-    
-    if (req.isAuthenticated()) {
-      if (!roles || roles.indexOf(req.user[role]) > -1){
-        after(req, res, next, permission.AUTHORIZED);
-      } else {
-        after(req, res, next, permission.NOT_AUTHORIZED);
-      }
+    if (req.isAuthenticated() && !req.user[role]) {
+      throw new Error("User doesn't have property named: " +
+        role + ". See Advantage Start in docs")
     }
-    else {
+
+    if (req.isAuthenticated()) {
+      if (Array.isArray(req.user[role])) {
+        if (!roles || roles.filter(function(n) {
+            return req.user[role].indexOf(n) != -1;
+          }).length > 0) {
+          after(req, res, next, permission.AUTHORIZED);
+        } else {
+          after(req, res, next, permission.NOT_AUTHORIZED);
+        }
+      } else {
+        if (!roles || roles.indexOf(req.user[role]) > -1) {
+          after(req, res, next, permission.AUTHORIZED);
+        } else {
+          after(req, res, next, permission.NOT_AUTHORIZED);
+        }
+      }
+
+    } else {
       after(req, res, next, permission.NOT_AUTHENTICATED);
     }
   }
 }
 
-Object.defineProperty(permission, 'AUTHORIZED', { value: 'authorized' });
-Object.defineProperty(permission, 'NOT_AUTHORIZED', { value: 'notAuthorized' });
-Object.defineProperty(permission, 'NOT_AUTHENTICATED', { value: 'notAuthenticated' });
+Object.defineProperty(permission, 'AUTHORIZED', {
+  value: 'authorized'
+});
+Object.defineProperty(permission, 'NOT_AUTHORIZED', {
+  value: 'notAuthorized'
+});
+Object.defineProperty(permission, 'NOT_AUTHENTICATED', {
+  value: 'notAuthenticated'
+});
 
 module.exports = permission;
